@@ -33,8 +33,7 @@ public class Main extends JFrame {
     //JFrame properties
 	public static final int WIDTH  = 960;
 	public static final int HEIGHT = WIDTH/4 * 3;
-	private static final int UPS = 60; //updates per second
-	
+
 	//global variables for inputs from the user
 	private int clickX, clickY, X, Y; //the current location of the mouse and the last point that was clicked 
 	private boolean mouseHeld; //true if mouse button is held
@@ -278,14 +277,15 @@ public class Main extends JFrame {
 				
 				Arrays.fill(pressed, false);
 				
+/*
 				//load high score manager class and high score window
 				hs = new ScoreManager("hiscores\\level" + level + ".dat");
 				sf = new ScoreFrame(hs.getFormattedString(String.format("%11s%s\n\n", "", "Level " + level + " High Scores")));
-				
-				
+*/				
 				gameLoop();
+/*
 				sf.dispose(); //get rid of the score frame
-				
+*/	
 				//move on to the next level
 				level++;
 				if (level > maxlevels) level = startLevel;
@@ -308,7 +308,7 @@ public class Main extends JFrame {
 		} //game loop
 		
 	} //gameLoop method
-	
+
 	private void update() {
 		//call each subroutine to update accordingly
         if (GAME_STATE == state.PLAY) {
@@ -459,42 +459,60 @@ public class Main extends JFrame {
 		} //display lose
         
 	}
-	
-	private void gameLoop() {
+
+	private static final int UPS = 60; //updates per second
+	private static final int FPS = 40; //maximum frames per second
+
+	//main game loop; automatically called after thread.start()
+	public void gameLoop() {
 		state ORIGINAL_STATE = GAME_STATE;
-        
-        double ns = 1000000000.0 / UPS;
-        double delta = 0;
-        int frames = 0, updates = 0;
-        
-        long UPSTimer = System.nanoTime();
-        long FPSTimer = System.nanoTime();
+		
+		double NSPU = 1000000000.0 / UPS; //nanoseconds per update
+		double delta = 0;
+		int frames = 0, updates = 0;
+		
+		/**
+		 * To limit the FPS, we split a second into periods.
+		 * If a certain period of a second has been rendered,
+		 * we mark the section off in a boolean array and do not
+		 * render again until the next period of the second.
+		 */
+		boolean[] periods = new boolean[FPS + 1];
+		int period;
+		double NSPF = 1000000000.0 / FPS; //nanoseconds per frame
+
+		long UPSTimer = System.nanoTime();
+		long FPSTimer = System.nanoTime();
+		
 		while (GAME_STATE == ORIGINAL_STATE) {
-            long now = System.nanoTime();
-            delta += (now - UPSTimer) / ns;
-            UPSTimer = now;
-            while (delta >= 1) {
-                update();
-                delta--;
-                updates++;
-            }
-            //check if state changed to prevent render() nullpointers, etc.
-            if (GAME_STATE != ORIGINAL_STATE) break;
-            try {
-            	render();
-            } catch(Exception e) {
-            	e.printStackTrace();
-            }
-            frames++;
-            if (System.nanoTime() - FPSTimer > 1000000000) {
-                this.setTitle("LazerMazer " + updates + " UPS  ||  " + frames + " FPS");
-                FPSTimer += 1000000000;
-                frames = 0;
-                updates = 0;
-            }
+			long now = System.nanoTime();
+			delta += (now - UPSTimer) / NSPU;
+			UPSTimer = now;
+			while (delta >= 1) {
+				update();
+				delta--;
+				updates++;
+			}
+			period = (int)((System.nanoTime() - FPSTimer) / NSPF);
+			if (!periods[period]) {
+	            try {
+	            	render();
+	            } catch(Exception e) {
+	            	e.printStackTrace();
+	            }
+				frames++;
+				periods[period] = true;
+			}
+			if (System.nanoTime() - FPSTimer > 1000000000) {
+				this.setTitle("LazerMazer " + updates + " UPS  ||  " + frames + " FPS");
+				FPSTimer += 1000000000;
+				frames = 0;
+				Arrays.fill(periods, false);
+				updates = 0;
+			}
 		}
 	}
-	
+
 	private void display(Container arg) {
         this.getContentPane().removeAll();
         this.setContentPane(arg);
